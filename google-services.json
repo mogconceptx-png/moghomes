@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "595137253542",
+    "project_id": "moghomes",
+    "storage_bucket": "moghomes.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:595137253542:android:539cc32e2b74800c68a467",
+        "android_client_info": {
+          "package_name": "com.mogconceptx.moghomes"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDAIrRQcwje_z0caQj-RDLnFgP_J0jhaQk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
