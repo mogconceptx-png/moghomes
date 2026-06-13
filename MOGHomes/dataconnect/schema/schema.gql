@@ -1,0 +1,38 @@
+type User @table {
+  fullName: String!
+  email: String!
+  role: String!
+  phoneNumber: String
+  profilePictureUrl: String
+}
+
+type Property @table {
+  title: String!
+  price: Float!
+  propertyType: String!
+  locationCoordinates: String!
+  status: String!
+  description: String
+  squareFootage: Int
+  amenities: String
+  owner: User!
+}
+
+type ListingMedia @table {
+  mediaUrl: String!
+  mediaType: String!
+  property: Property!
+}
+
+type Wishlist @table {
+  createdAt: Timestamp!
+  user: User!
+  property: Property!
+}
+
+type Inquiry @table {
+  message: String!
+  timestamp: Timestamp!
+  sender: User!
+  property: Property!
+}

@@ -1,0 +1,27 @@
+mutation CreateInquiry($propertyId: UUID!, $message: String!) @auth(level: USER) {
+  inquiry_insert(data: {
+    propertyId: $propertyId,
+    senderId_expr: "auth.uid",
+    message: $message,
+    timestamp_expr: "request.time"
+  })
+}
+
+mutation UpdateProperty($id: UUID!, $price: Float!) @auth(level: USER) {
+  property_update(key: {id: $id}, data: {price: $price})
+}
+
+query ListProperties @auth(level: PUBLIC) {
+  properties(limit: 20, orderBy: [{price: ASC}]) {
+    id
+    title
+    price
+    owner {
+      fullName
+    }
+  }
+}
+
+mutation DeleteInquiry($id: UUID!) @auth(level: USER) {
+  inquiry_delete(key: {id: $id})
+}

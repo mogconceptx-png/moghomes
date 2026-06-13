@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "MOG Homes",
+    "slug": "moghomes",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1B4332"
+    },
+    "updates": {
+      "enabled": false
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.mogconceptx.moghomes",
+      "googleServicesFile": "./android/app/google-services.json"
+    },
+    "plugins": [
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "06967b07-0631-43a8-b9ad-ff03456f41ba"
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+mutation CreateDemoData @transaction {
+  user_insertMany(data: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      fullName: "Alice Smith",
+      email: "alice@example.com",
+      role: "owner"
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      fullName: "Bob Jones",
+      email: "bob@example.com",
+      role: "buyer"
+    }
+  ])
+  property_insertMany(data: [
+    {
+      id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      title: "Cozy Beach Cottage",
+      price: 250000.0,
+      propertyType: "House",
+      locationCoordinates: "34.05,-118.25",
+      status: "Available",
+      owner: {id: "550e8400-e29b-41d4-a716-446655440000"}
+    }
+  ])
+}
