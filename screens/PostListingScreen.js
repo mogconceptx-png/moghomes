@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, ScrollView, TouchableOpacity,
-  StyleSheet, SafeAreaView, Alert,
+  StyleSheet, SafeAreaView, Alert, Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 
 const TYPES = ['For Sale', 'For Rent', 'Land', 'Commercial', 'Short Let'];
 const STATES = ['Lagos', 'Abuja', 'Rivers', 'Ogun', 'Oyo', 'Kano', 'Delta'];
@@ -13,8 +14,25 @@ export default function PostListingScreen() {
     state: 'Lagos', beds: '', baths: '', description: '',
   });
   const [submitted, setSubmitted] = useState(false);
+  const [photos, setPhotos] = useState([]);
 
   const update = (field, val) => setForm(prev => ({ ...prev, [field]: val }));
+
+  const handlePickPhotos = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Please allow access to your photo library.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      setPhotos(prev => [...prev, ...result.assets.map(a => a.uri)]);
+    }
+  };
 
   const handleSubmit = () => {
     if (!form.title || !form.price || !form.location) {
@@ -147,11 +165,19 @@ export default function PostListingScreen() {
           />
 
           <Text style={styles.label}>Property Photos</Text>
-          <TouchableOpacity style={styles.photoBox}>
+          <TouchableOpacity style={styles.photoBox} onPress={handlePickPhotos}>
             <Text style={{ fontSize: 32 }}>📷</Text>
             <Text style={styles.photoText}>Tap to upload photos</Text>
             <Text style={styles.photoSub}>HD photos get 3x more enquiries</Text>
           </TouchableOpacity>
+
+          {photos.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+              {photos.map((uri, i) => (
+                <Image key={i} source={{ uri }} style={styles.photoThumb} />
+              ))}
+            </ScrollView>
+          )}
 
           <Text style={styles.label}>Listing Plan</Text>
           <View style={styles.plansRow}>
@@ -209,6 +235,7 @@ const styles = StyleSheet.create({
   photoBox: { backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 2, borderColor: '#E5E0D5', borderStyle: 'dashed', padding: 24, alignItems: 'center', marginBottom: 16 },
   photoText: { fontSize: 14, fontWeight: '700', color: '#1A1A1A', marginTop: 8 },
   photoSub: { fontSize: 12, color: '#6B7280', marginTop: 3 },
+  photoThumb: { width: 80, height: 80, borderRadius: 10, marginRight: 8 },
   plansRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
   planCard: { flex: 1, borderRadius: 14, padding: 14, borderWidth: 1 },
   planFree: { backgroundColor: '#FFFFFF', borderColor: '#E5E0D5' },
@@ -226,4 +253,3 @@ const styles = StyleSheet.create({
   successBadge: { marginTop: 20, backgroundColor: '#EDF7EE', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 10 },
   successBadgeText: { color: '#1B4332', fontWeight: '700', fontSize: 14 },
 });
-
