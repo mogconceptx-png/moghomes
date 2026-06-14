@@ -1,0 +1,3 @@
+[build]
+  command = "npx expo export -p web && cp privacy-policy.html terms-of-service.html dist/"
+  publish = "dist"
