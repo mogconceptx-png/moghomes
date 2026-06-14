@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import auth from '@react-native-firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../firebase';
 import { View, ActivityIndicator } from 'react-native';
 import AuthScreen from '../screens/AuthScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -49,7 +50,7 @@ export default function AppNavigator() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = auth().onAuthStateChanged(currentUser => {
+    const unsubscribe = onAuthStateChanged(auth, currentUser => {
       setUser(currentUser);
       setLoading(false);
     });
@@ -70,4 +71,3 @@ export default function AppNavigator() {
     </NavigationContainer>
   );
 }
-

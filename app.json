@@ -21,12 +21,23 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.mogconceptx.moghomes",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 1,
+      "minSdkVersion": 23,
+      "targetSdkVersion": 34,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
     },
     "plugins": [
-      "@react-native-firebase/app",
-      "@react-native-firebase/auth"
+      "expo-image-picker"
     ],
+    "privacyPolicyUrl": "https://moghomes.netlify.app/privacy-policy.html",
     "extra": {
       "eas": {
         "projectId": "06967b07-0631-43a8-b9ad-ff03456f41ba"

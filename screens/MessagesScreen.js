@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
-  StyleSheet, SafeAreaView, TextInput,
+  StyleSheet, SafeAreaView, TextInput, Alert,
 } from 'react-native';
 
 const CONVERSATIONS = [
@@ -11,12 +11,65 @@ const CONVERSATIONS = [
   { id: '4', agent: 'Emeka Okafor', property: '2-Bedroom Flat, Ikeja GRA', lastMsg: 'Yes the water is constant and there is 24hr light.', time: 'Yesterday', unread: 0, verified: true },
 ];
 
+function NewMessageScreen({ onBack, onStartChat }) {
+  const [agentName, setAgentName] = useState('');
+  const [property, setProperty] = useState('');
+
+  const handleStart = () => {
+    if (!agentName.trim() || !property.trim()) {
+      Alert.alert('Missing info', 'Please enter agent name and property.');
+      return;
+    }
+    onStartChat({
+      id: Date.now().toString(),
+      agent: agentName.trim(),
+      property: property.trim(),
+      lastMsg: '',
+      time: 'Now',
+      unread: 0,
+      verified: false,
+    });
+  };
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.chatHeader}>
+        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+          <Text style={styles.backText}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>New Message</Text>
+      </View>
+      <View style={styles.form}>
+        <Text style={styles.label}>Agent Name</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. Chukwuemeka Obi"
+          placeholderTextColor="#6B7280"
+          value={agentName}
+          onChangeText={setAgentName}
+        />
+        <Text style={styles.label}>Property</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. 3-Bedroom Duplex, Lekki"
+          placeholderTextColor="#6B7280"
+          value={property}
+          onChangeText={setProperty}
+        />
+        <TouchableOpacity style={styles.submitBtn} onPress={handleStart}>
+          <Text style={styles.submitText}>Start Conversation</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
 function ChatScreen({ convo, onBack }) {
   const [messages, setMessages] = useState([
     { id: '1', text: 'Hello, I am interested in your property listing.', mine: true, time: '10:00' },
     { id: '2', text: 'Welcome! Thank you for reaching out. Which property are you interested in?', mine: false, time: '10:02' },
     { id: '3', text: convo.property, mine: true, time: '10:03' },
-    { id: '4', text: convo.lastMsg, mine: false, time: '10:05' },
+    ...(convo.lastMsg ? [{ id: '4', text: convo.lastMsg, mine: false, time: '10:05' }] : []),
   ]);
   const [input, setInput] = useState('');
 
@@ -55,12 +108,8 @@ function ChatScreen({ convo, onBack }) {
         contentContainerStyle={styles.msgList}
         renderItem={({ item }) => (
           <View style={[styles.bubble, item.mine ? styles.bubbleMine : styles.bubbleTheirs]}>
-            <Text style={[styles.bubbleText, item.mine && styles.bubbleTextMine]}>
-              {item.text}
-            </Text>
-            <Text style={[styles.bubbleTime, item.mine && { color: 'rgba(255,255,255,0.7)' }]}>
-              {item.time}
-            </Text>
+            <Text style={[styles.bubbleText, item.mine && styles.bubbleTextMine]}>{item.text}</Text>
+            <Text style={[styles.bubbleTime, item.mine && { color: 'rgba(255,255,255,0.7)' }]}>{item.time}</Text>
           </View>
         )}
       />
@@ -92,6 +141,16 @@ function ChatScreen({ convo, onBack }) {
 
 export default function MessagesScreen() {
   const [activeChat, setActiveChat] = useState(null);
+  const [showNew, setShowNew] = useState(false);
+
+  if (showNew) {
+    return (
+      <NewMessageScreen
+        onBack={() => setShowNew(false)}
+        onStartChat={(convo) => { setShowNew(false); setActiveChat(convo); }}
+      />
+    );
+  }
 
   if (activeChat) {
     return <ChatScreen convo={activeChat} onBack={() => setActiveChat(null)} />;
@@ -101,24 +160,14 @@ export default function MessagesScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Messages</Text>
-        <TouchableOpacity style={styles.newBtn}>
+        <TouchableOpacity style={styles.newBtn} onPress={() => setShowNew(true)}>
           <Text style={styles.newBtnText}>+ New</Text>
         </TouchableOpacity>
       </View>
-
       <FlatList
         data={CONVERSATIONS}
         keyExtractor={i => i.id}
         contentContainerStyle={{ paddingHorizontal: 20 }}
-        ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Text style={{ fontSize: 48 }}>💬</Text>
-            <Text style={styles.emptyText}>No messages yet</Text>
-            <Text style={styles.emptySub}>
-              Start chatting with an agent by tapping{'\n'}"Message Agent" on any property
-            </Text>
-          </View>
-        }
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.convCard} onPress={() => setActiveChat(item)}>
             <View style={styles.avatarBox}>
@@ -150,6 +199,11 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 22, fontWeight: '900', color: '#1A1A1A' },
   newBtn: { backgroundColor: '#1B4332', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
   newBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
+  form: { paddingHorizontal: 20, paddingTop: 20 },
+  label: { fontSize: 13, fontWeight: '700', color: '#1A1A1A', marginBottom: 6, marginTop: 4 },
+  input: { backgroundColor: '#FFFFFF', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 14, color: '#1A1A1A', borderWidth: 1, borderColor: '#E5E0D5', marginBottom: 14 },
+  submitBtn: { backgroundColor: '#1B4332', borderRadius: 16, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
+  submitText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
   convCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#E5E0D5' },
   avatarBox: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#F8F6F1', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   convInfo: { flex: 1 },
@@ -185,4 +239,3 @@ const styles = StyleSheet.create({
   sendBtn: { backgroundColor: '#1B4332', width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   sendText: { color: '#FFFFFF', fontSize: 16 },
 });
-
