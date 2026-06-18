@@ -1,56 +1,90 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Image, FlatList } from 'react-native';
-const FEATURED = [
-  { id: '1', title: 'Luxury 4-Bedroom Duplex', location: 'Lekki Phase 1, Lagos', price: '₦85,000,000', type: 'For Sale', beds: 4, baths: 3, image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600', agent: 'Chukwuemeka Obi', verified: true },
-  { id: '2', title: 'Modern 3-Bedroom Apartment', location: 'Victoria Island, Lagos', price: '₦2,500,000/yr', type: 'For Rent', beds: 3, baths: 2, image: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600', agent: 'Amara Nwosu', verified: true },
-  { id: '3', title: 'Executive 5-Bedroom Mansion', location: 'Banana Island, Lagos', price: '₦320,000,000', type: 'For Sale', beds: 5, baths: 5, image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=600', agent: 'Folake Adeyemi', verified: false },
-];
-const RECENT = [
-  { id: '4', title: '2-Bedroom Flat', location: 'Ikeja GRA, Lagos', price: '₦1,800,000/yr', type: 'For Rent', beds: 2, baths: 1, image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400', verified: true },
-  { id: '5', title: 'Land (600 sqm)', location: 'Ibeju-Lekki, Lagos', price: '₦12,000,000', type: 'Land', beds: 0, baths: 0, image: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=400', verified: false },
-  { id: '6', title: '3-Bedroom Terrace', location: 'Ajah, Lagos', price: '₦45,000,000', type: 'For Sale', beds: 3, baths: 2, image: 'https://images.unsplash.com/photo-1560184897-ae75f418493e?w=400', verified: true },
-];
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Image, FlatList, ActivityIndicator } from 'react-native';
+import { db } from '../firebase';
+import { collection, query, orderBy, limit, where, onSnapshot } from 'firebase/firestore';
+
 const CATEGORIES = ['All', 'Buy', 'Rent', 'Land', 'Commercial', 'Short Let'];
+
+const CATEGORY_TYPE_MAP = {
+  'Buy': 'For Sale',
+  'Rent': 'For Rent',
+  'Land': 'Land',
+  'Commercial': 'Commercial',
+  'Short Let': 'Short Let',
+};
+
+const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1560184897-ae75f418493e?w=600';
+
 function FeaturedCard({ item, onPress }) {
   const [saved, setSaved] = useState(false);
+  const image = item.images?.[0] || item.image || PLACEHOLDER_IMAGE;
   return (
     <TouchableOpacity style={styles.featuredCard} onPress={onPress} activeOpacity={0.92}>
-      <Image source={{ uri: item.image }} style={styles.featuredImage} />
+      <Image source={{ uri: image }} style={styles.featuredImage} />
       <TouchableOpacity style={styles.heartBtn} onPress={() => setSaved(!saved)}>
         <Text style={{ fontSize: 18 }}>{saved ? '❤️' : '🤍'}</Text>
       </TouchableOpacity>
       <View style={[styles.typeBadge, { backgroundColor: item.type === 'For Rent' ? '#1B4332' : '#C9A84C' }]}>
         <Text style={styles.typeText}>{item.type}</Text>
       </View>
+      {item.isPremium && (
+        <View style={styles.premiumBadge}><Text style={styles.premiumBadgeText}>⭐</Text></View>
+      )}
       <View style={styles.featuredInfo}>
-        <Text style={styles.featuredPrice}>{item.price}</Text>
+        <Text style={styles.featuredPrice}>₦{Number(item.price).toLocaleString()}</Text>
         <Text style={styles.featuredTitle} numberOfLines={1}>{item.title}</Text>
-        <Text style={styles.featuredLocation}>📍 {item.location}</Text>
+        <Text style={styles.featuredLocation}>📍 {item.location}, {item.state}</Text>
         <View style={styles.featuredRow}>
           {item.beds > 0 && <Text style={styles.metaItem}>🛏 {item.beds} beds</Text>}
           {item.baths > 0 && <Text style={styles.metaItem}>🚿 {item.baths} baths</Text>}
-          <Text style={styles.agentName}>{item.verified ? '✅' : '👤'} {item.agent}</Text>
+          <Text style={styles.agentName}>{item.verified ? '✅ Verified' : '⏳ Pending'}</Text>
         </View>
       </View>
     </TouchableOpacity>
   );
 }
+
 function RecentCard({ item, onPress }) {
   const [saved, setSaved] = useState(false);
+  const image = item.images?.[0] || item.image || PLACEHOLDER_IMAGE;
   return (
     <TouchableOpacity style={styles.recentCard} onPress={onPress} activeOpacity={0.92}>
-      <Image source={{ uri: item.image }} style={styles.recentImage} />
+      <Image source={{ uri: image }} style={styles.recentImage} />
       <View style={styles.recentInfo}>
-        <Text style={styles.recentPrice}>{item.price}</Text>
+        <Text style={styles.recentPrice}>₦{Number(item.price).toLocaleString()}</Text>
         <Text style={styles.recentTitle} numberOfLines={1}>{item.title}</Text>
         <Text style={styles.recentLocation} numberOfLines={1}>📍 {item.location}</Text>
-        {item.beds > 0 && <Text style={styles.recentMeta}>🛏 {item.beds}  🚿 {item.baths}  {item.verified ? '✅' : ''}</Text>}
+        {item.beds > 0 && <Text style={styles.recentMeta}>🛏 {item.beds}  🚿 {item.baths}  {item.verified ? '✅' : '⏳'}</Text>}
       </View>
     </TouchableOpacity>
   );
 }
+
 export default function HomeScreen({ navigation }) {
   const [activeCategory, setActiveCategory] = useState('All');
+  const [featured, setFeatured] = useState([]);
+  const [recent, setRecent] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const featuredQ = query(collection(db, 'listings'), where('isPremium', '==', true), orderBy('createdAt', 'desc'), limit(10));
+    const unsubFeatured = onSnapshot(featuredQ, snap => {
+      setFeatured(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, () => setFeatured([]));
+
+    const recentQ = query(collection(db, 'listings'), orderBy('createdAt', 'desc'), limit(20));
+    const unsubRecent = onSnapshot(recentQ, snap => {
+      setRecent(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    }, () => { setRecent([]); setLoading(false); });
+
+    return () => { unsubFeatured(); unsubRecent(); };
+  }, []);
+
+  const filteredRecent = activeCategory === 'All'
+    ? recent
+    : recent.filter(l => l.type === CATEGORY_TYPE_MAP[activeCategory]);
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -76,27 +110,44 @@ export default function HomeScreen({ navigation }) {
           ))}
         </ScrollView>
         <View style={styles.statsBanner}>
-          <View style={styles.statItem}><Text style={styles.statNum}>2,400+</Text><Text style={styles.statLabel}>Listings</Text></View>
+          <View style={styles.statItem}><Text style={styles.statNum}>{recent.length || '0'}</Text><Text style={styles.statLabel}>Listings</Text></View>
           <View style={styles.statDivider} />
-          <View style={styles.statItem}><Text style={styles.statNum}>340+</Text><Text style={styles.statLabel}>Agents</Text></View>
+          <View style={styles.statItem}><Text style={styles.statNum}>{featured.length || '0'}</Text><Text style={styles.statLabel}>Featured</Text></View>
           <View style={styles.statDivider} />
-          <View style={styles.statItem}><Text style={styles.statNum}>18+</Text><Text style={styles.statLabel}>Cities</Text></View>
+          <View style={styles.statItem}><Text style={styles.statNum}>🇳🇬</Text><Text style={styles.statLabel}>Nigeria</Text></View>
         </View>
+
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Featured Properties</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Search')}><Text style={styles.seeAll}>See all</Text></TouchableOpacity>
         </View>
-        <FlatList data={FEATURED} keyExtractor={i => i.id} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingRight: 8 }} renderItem={({ item }) => <FeaturedCard item={item} onPress={() => navigation.navigate('PropertyDetail', { property: item })} />} />
+        {loading ? (
+          <ActivityIndicator size="small" color="#1B4332" style={{ marginLeft: 20 }} />
+        ) : featured.length === 0 ? (
+          <Text style={styles.emptyText}>No featured listings yet</Text>
+        ) : (
+          <FlatList data={featured} keyExtractor={i => i.id} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 20, paddingRight: 8 }} renderItem={({ item }) => <FeaturedCard item={item} onPress={() => navigation.navigate('PropertyDetail', { property: item })} />} />
+        )}
+
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Listings</Text>
+          <Text style={styles.sectionTitle}>
+            {activeCategory === 'All' ? 'Recent Listings' : activeCategory + ' Listings'}
+          </Text>
           <TouchableOpacity onPress={() => navigation.navigate('Search')}><Text style={styles.seeAll}>See all</Text></TouchableOpacity>
         </View>
-        {RECENT.map(item => <RecentCard key={item.id} item={item} onPress={() => navigation.navigate('PropertyDetail', { property: item })} />)}
+        {loading ? (
+          <ActivityIndicator size="small" color="#1B4332" style={{ marginLeft: 20 }} />
+        ) : filteredRecent.length === 0 ? (
+          <Text style={styles.emptyText}>No listings in this category yet</Text>
+        ) : (
+          filteredRecent.map(item => <RecentCard key={item.id} item={item} onPress={() => navigation.navigate('PropertyDetail', { property: item })} />)
+        )}
         <View style={{ height: 30 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F8F6F1' },
   scroll: { flex: 1 },
@@ -122,10 +173,13 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 14 },
   sectionTitle: { fontSize: 17, fontWeight: '800', color: '#1A1A1A' },
   seeAll: { fontSize: 13, color: '#1B4332', fontWeight: '600' },
+  emptyText: { fontSize: 13, color: '#6B7280', marginLeft: 20, marginBottom: 16 },
   featuredCard: { width: 260, marginRight: 14, borderRadius: 18, backgroundColor: '#FFFFFF', elevation: 5, marginBottom: 20, overflow: 'hidden' },
   featuredImage: { width: '100%', height: 160 },
   heartBtn: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 20, padding: 6 },
   typeBadge: { position: 'absolute', top: 12, left: 12, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  premiumBadge: { position: 'absolute', top: 44, left: 12, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
+  premiumBadgeText: { fontSize: 12 },
   typeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
   featuredInfo: { padding: 14 },
   featuredPrice: { fontSize: 18, fontWeight: '900', color: '#1B4332' },
