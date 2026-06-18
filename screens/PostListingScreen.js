@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, ScrollView, TouchableOpacity,
-  StyleSheet, SafeAreaView, Alert, Image, Modal, Pressable,
+  StyleSheet, SafeAreaView, Alert, Image, Modal, Pressable, Clipboard, ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { db } from '../firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+
+const CLOUDINARY_CLOUD = 'donoemwfm';
+const CLOUDINARY_UPLOAD_PRESET = 'moghomes_unsigned';
 
 const TYPES = ['For Sale', 'For Rent', 'Land', 'Commercial', 'Short Let'];
 const STATES = ['Lagos', 'Abuja', 'Rivers', 'Ogun', 'Oyo', 'Kano', 'Delta'];
@@ -22,6 +27,11 @@ const PLANS = [
   { id: 'monthly', label: 'Monthly', price: '₦35,000', tag: '⭐ BEST VALUE', desc: 'Unlimited premium listings for 30 days', color: '#C9A84C' },
 ];
 
+const BANK_ACCOUNTS = [
+  { bank: 'United Bank for Africa (UBA)', number: '1025219583', name: 'Monumental Opulence Global Conceptx' },
+  { bank: 'Zenith Bank Plc', number: '1223597470', name: 'Monumental Opulence Global Conceptx' },
+];
+
 export default function PostListingScreen() {
   const [form, setForm] = useState({ title: '', type: 'For Sale', price: '', location: '', state: 'Lagos', beds: '', baths: '', description: '' });
   const [submitted, setSubmitted] = useState(false);
@@ -30,8 +40,18 @@ export default function PostListingScreen() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('per_listing');
   const [listingPlan, setListingPlan] = useState('free');
+  const [paymentMethod, setPaymentMethod] = useState('bank');
+  const [copiedAccount, setCopiedAccount] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
   const MAX_PHOTOS = isPremium ? 15 : 5;
   const update = (field, val) => setForm(prev => ({ ...prev, [field]: val }));
+
+  const handleCopyAccount = (number, bank) => {
+    Clipboard.setString(number);
+    setCopiedAccount(bank);
+    setTimeout(() => setCopiedAccount(null), 2000);
+  };
 
   const handlePickPhotos = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -47,16 +67,74 @@ export default function PostListingScreen() {
     }
   };
 
-  const handleUpgrade = () => {
-    Alert.alert('Payment Coming Soon', `You selected the ${selectedPlan === 'monthly' ? 'Monthly (₦35,000)' : 'Per Listing (₦15,000)'} plan.\n\nIn-app payments are coming soon. Our team will contact you to complete this upgrade.`,
-      [{ text: 'Activate Now', onPress: () => { setIsPremium(true); setListingPlan('featured'); setShowUpgradeModal(false); Alert.alert('🎉 Premium Activated!', 'Your listing will now be featured at the top of search results.'); } }, { text: 'Cancel', style: 'cancel' }]);
+  const uploadToCloudinary = async (uri, index, total) => {
+    setUploadProgress(`Uploading photo ${index + 1} of ${total}...`);
+    const formData = new FormData();
+    formData.append('file', { uri, type: 'image/jpeg', name: `photo_${Date.now()}.jpg` });
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    formData.append('folder', 'moghomes/listings');
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await response.json();
+    if (data.secure_url) return data.secure_url;
+    throw new Error(data.error?.message || 'Upload failed');
   };
 
-  const handleSubmit = () => {
-    if (!form.title || !form.price || !form.location) { Alert.alert('Missing info', 'Please fill in title, price, and location.'); return; }
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 4000);
+  const handleUpgrade = () => {
+    if (paymentMethod === 'paystack') {
+      Alert.alert('Paystack Coming Soon', 'Paystack payment will be available soon. Please use bank transfer for now.', [{ text: 'OK' }]);
+      return;
+    }
+    const amount = selectedPlan === 'monthly' ? '₦35,000' : '₦15,000';
+    Alert.alert('✅ Confirm Payment', `Once you have transferred ${amount} to any account above, tap "I've Paid" and we will activate your plan within minutes.`,
+      [{ text: "I've Paid", onPress: () => { setIsPremium(true); setListingPlan('featured'); setShowUpgradeModal(false); Alert.alert('🎉 Payment Received!', 'Your Premium listing will be activated shortly after verification.'); } }, { text: 'Cancel', style: 'cancel' }]);
   };
+
+  const handleSubmit = async () => {
+    if (!form.title || !form.price || !form.location) { Alert.alert('Missing info', 'Please fill in title, price, and location.'); return; }
+    setLoading(true);
+    try {
+      const imageUrls = [];
+      for (let i = 0; i < photos.length; i++) {
+        const url = await uploadToCloudinary(photos[i], i, photos.length);
+        imageUrls.push(url);
+      }
+      setUploadProgress('Saving listing...');
+      await addDoc(collection(db, 'listings'), {
+        ...form,
+        images: imageUrls,
+        image: imageUrls[0] || '',
+        isPremium,
+        plan: listingPlan,
+        verified: false,
+        status: 'pending',
+        beds: Number(form.beds) || 0,
+        baths: Number(form.baths) || 0,
+        createdAt: serverTimestamp(),
+      });
+      setLoading(false);
+      setUploadProgress('');
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 4000);
+    } catch (e) {
+      setLoading(false);
+      setUploadProgress('');
+      Alert.alert('Error', 'Failed to submit listing. Please try again.\n' + e.message);
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.safe, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#1B4332" />
+        <Text style={{ marginTop: 16, fontSize: 15, color: '#1B4332', fontWeight: '700', textAlign: 'center', paddingHorizontal: 40 }}>
+          {uploadProgress || 'Saving your listing...'}
+        </Text>
+      </SafeAreaView>
+    );
+  }
 
   if (submitted) {
     return (
@@ -157,6 +235,7 @@ export default function PostListingScreen() {
           <View style={{ height: 30 }} />
         </View>
       </ScrollView>
+
       <Modal visible={showUpgradeModal} animationType="slide" transparent onRequestClose={() => setShowUpgradeModal(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowUpgradeModal(false)}>
           <Pressable style={styles.modalSheet} onPress={() => {}}>
@@ -193,8 +272,42 @@ export default function PostListingScreen() {
                   <Text style={[styles.planOptionPrice, { color: plan.color }]}>{plan.price}</Text>
                 </TouchableOpacity>
               ))}
+              <Text style={styles.planSectionTitle}>Payment Method</Text>
+              <View style={styles.paymentToggleRow}>
+                <TouchableOpacity style={[styles.paymentToggleBtn, paymentMethod === 'bank' && styles.paymentToggleBtnActive]} onPress={() => setPaymentMethod('bank')}>
+                  <Text style={[styles.paymentToggleText, paymentMethod === 'bank' && styles.paymentToggleTextActive]}>🏦 Bank Transfer</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.paymentToggleBtn, paymentMethod === 'paystack' && styles.paymentToggleBtnActive]} onPress={() => setPaymentMethod('paystack')}>
+                  <Text style={[styles.paymentToggleText, paymentMethod === 'paystack' && styles.paymentToggleTextActive]}>💳 Paystack</Text>
+                </TouchableOpacity>
+              </View>
+              {paymentMethod === 'bank' && (
+                <View style={styles.bankSection}>
+                  <Text style={styles.bankSectionNote}>Transfer {selectedPlan === 'monthly' ? '₦35,000' : '₦15,000'} to any account below, then tap "I've Paid"</Text>
+                  {BANK_ACCOUNTS.map((acc, i) => (
+                    <View key={i} style={styles.bankCard}>
+                      <View style={styles.bankCardTop}><Text style={styles.bankName}>{acc.bank}</Text></View>
+                      <View style={styles.bankCardBody}>
+                        <View>
+                          <Text style={styles.bankAccNumber}>{acc.number}</Text>
+                          <Text style={styles.bankAccName}>{acc.name}</Text>
+                        </View>
+                        <TouchableOpacity style={[styles.copyBtn, copiedAccount === acc.bank && styles.copyBtnCopied]} onPress={() => handleCopyAccount(acc.number, acc.bank)}>
+                          <Text style={styles.copyBtnText}>{copiedAccount === acc.bank ? '✓ Copied' : 'Copy'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {paymentMethod === 'paystack' && (
+                <View style={styles.paystackSection}>
+                  <Text style={styles.paystackComingSoon}>🔜 Paystack Coming Soon</Text>
+                  <Text style={styles.paystackDesc}>Online card and bank payment via Paystack will be available shortly. Please use bank transfer for now.</Text>
+                </View>
+              )}
               <TouchableOpacity style={styles.upgradeBtn} onPress={handleUpgrade}>
-                <Text style={styles.upgradeBtnText}>Upgrade to Premium — {selectedPlan === 'monthly' ? '₦35,000/mo' : '₦15,000'}</Text>
+                <Text style={styles.upgradeBtnText}>{paymentMethod === 'paystack' ? '💳 Pay with Paystack — Coming Soon' : "✅ I've Paid — Activate Premium"}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.skipBtn} onPress={() => setShowUpgradeModal(false)}>
                 <Text style={styles.skipText}>Continue with Free listing</Text>
@@ -282,6 +395,25 @@ const styles = StyleSheet.create({
   planTagText: { fontSize: 9, color: '#C9A84C', fontWeight: '800' },
   planOptionDesc: { fontSize: 11, color: '#6B7280', marginTop: 2 },
   planOptionPrice: { fontSize: 16, fontWeight: '900' },
+  paymentToggleRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  paymentToggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 2, borderColor: '#E5E0D5', alignItems: 'center', backgroundColor: '#F8F6F1' },
+  paymentToggleBtnActive: { borderColor: '#1B4332', backgroundColor: '#EDF7EE' },
+  paymentToggleText: { fontSize: 13, fontWeight: '700', color: '#6B7280' },
+  paymentToggleTextActive: { color: '#1B4332' },
+  bankSection: { marginBottom: 16 },
+  bankSectionNote: { fontSize: 12, color: '#6B7280', textAlign: 'center', marginBottom: 12, lineHeight: 18 },
+  bankCard: { backgroundColor: '#F8F6F1', borderRadius: 14, borderWidth: 1, borderColor: '#E5E0D5', marginBottom: 10, overflow: 'hidden' },
+  bankCardTop: { backgroundColor: '#1B4332', paddingHorizontal: 14, paddingVertical: 8 },
+  bankName: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
+  bankCardBody: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12 },
+  bankAccNumber: { fontSize: 20, fontWeight: '900', color: '#1A1A1A', letterSpacing: 1 },
+  bankAccName: { fontSize: 11, color: '#6B7280', marginTop: 2 },
+  copyBtn: { backgroundColor: '#1B4332', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
+  copyBtnCopied: { backgroundColor: '#C9A84C' },
+  copyBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  paystackSection: { backgroundColor: '#FFF8E7', borderRadius: 14, padding: 20, alignItems: 'center', marginBottom: 16 },
+  paystackComingSoon: { fontSize: 16, fontWeight: '800', color: '#C9A84C', marginBottom: 8 },
+  paystackDesc: { fontSize: 13, color: '#6B7280', textAlign: 'center', lineHeight: 20 },
   upgradeBtn: { backgroundColor: '#1B4332', borderRadius: 16, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
   upgradeBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   skipBtn: { alignItems: 'center', paddingVertical: 14 },
