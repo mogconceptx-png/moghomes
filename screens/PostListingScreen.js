@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, ScrollView, TouchableOpacity,
-  StyleSheet, SafeAreaView, Alert, Image, Modal, Pressable, Clipboard, ActivityIndicator,
+  StyleSheet, SafeAreaView, Alert, Image, Modal, Pressable, Clipboard, ActivityIndicator, Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { db } from '../firebase';
@@ -70,14 +70,23 @@ export default function PostListingScreen() {
   const uploadToCloudinary = async (uri, index, total) => {
     setUploadProgress(`Uploading photo ${index + 1} of ${total}...`);
     const formData = new FormData();
-    formData.append('file', { uri, type: 'image/jpeg', name: `photo_${Date.now()}.jpg` });
+
+    if (Platform.OS === 'web') {
+      const fileResponse = await fetch(uri);
+      const blob = await fileResponse.blob();
+      formData.append('file', blob, `photo_${Date.now()}.jpg`);
+    } else {
+      formData.append('file', { uri, type: 'image/jpeg', name: `photo_${Date.now()}.jpg` });
+    }
+
     formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
     formData.append('folder', 'moghomes/listings');
-    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
+
+    const uploadResponse = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
       method: 'POST',
       body: formData,
     });
-    const data = await response.json();
+    const data = await uploadResponse.json();
     if (data.secure_url) return data.secure_url;
     throw new Error(data.error?.message || 'Upload failed');
   };
